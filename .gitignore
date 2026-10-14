@@ -28,3 +28,4 @@ htmlcov/
 # Local environment secrets
 .env.*
 !.env.example
+models/*.onnx

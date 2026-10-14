@@ -68,3 +68,34 @@ These metrics establish the initial baseline for subsequent experiments.
 ### 8. Conclusion
 
 The baseline notebook loads and cleans the dataset, engineers the required features, trains a linear regression model, and evaluates its performance. The resulting MAE and RMSE provide reference metrics for the next stages of the MLOps workflow.
+
+## Module 04 — Model Serialization
+
+### Pickle vs ONNX: inference benchmark
+
+Both formats were evaluated on the same 500 validation examples. The benchmark performed 100 timed batch-inference repetitions after a warm-up. Feature vectorization and ONNX dense-array conversion were performed before timing, so preprocessing is excluded.
+
+| Metric | Pickle / scikit-learn | ONNX Runtime |
+|---|---:|---:|
+| Validation batch size | 500 rows | 500 rows |
+| Mean latency (ms/batch) | 0.1325 | 1.3905 |
+| p95 latency (ms/batch) | 0.1719 | 2.6175 |
+
+The parity test passed with an absolute tolerance of 1e-4. In this local inference-only benchmark, Pickle/scikit-learn was faster than ONNX Runtime. These measurements describe this environment and workload; they do not establish that one format is universally faster. In particular, preprocessing costs are excluded, and ONNX receives dense input while scikit-learn uses sparse input.
+
+### Serialization format comparison
+
+| Format | Human-readable | Cross-language | Schema-enforced | Safe to load from an untrusted source |
+|---|---|---|---|---|
+| JSON | Yes | Yes | No built-in schema; JSON Schema can provide validation | Generally safe to parse, but validate the data |
+| Protobuf | No, normally binary (a text format also exists) | Yes | Yes, using a `.proto` schema | Generally safer than executable object formats; validate input |
+| Pickle | No | No, Python-specific | No | **No** — loading can execute arbitrary code |
+| ONNX | No, normally a binary model graph | Yes, through compatible runtimes | Partially — defines typed tensors and graph structure, not a complete application-level schema | Safer than Pickle against Python-code execution, but only use trusted, validated model artifacts |
+
+### Service format decision
+
+The prediction service will use **ONNX for regression inference** because it supports interoperable inference across languages and runtimes; the trusted Pickle artifact is retained for the fitted `DictVectorizer` needed to prepare input features.
+
+### Security note
+
+Never load a Pickle artifact from an untrusted source: deserialization can execute arbitrary code. Model artifacts should come from a trusted build or training process.
