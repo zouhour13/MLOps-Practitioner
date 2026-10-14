@@ -5,3 +5,26 @@ __pycache__/
 .ipynb_checkpoints/
 .env
 data/
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# Generated model artifacts
+models/*.pkl
+
+# Test and lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local backup files
+*.module1-backup
+*.bak
+
+# Local environment secrets
+.env.*
+!.env.example
