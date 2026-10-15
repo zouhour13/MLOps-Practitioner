@@ -99,3 +99,75 @@ The prediction service will use **ONNX for regression inference** because it sup
 ### Security note
 
 Never load a Pickle artifact from an untrusted source: deserialization can execute arbitrary code. Model artifacts should come from a trusted build or training process.
+
+# Optional Experiment — FastAPI vs. Litestar
+
+## 1. Objective
+
+Implement the same `/predict` endpoint using Litestar on a separate experiment branch and document the ergonomic differences between FastAPI and Litestar while reusing the existing prediction logic.
+
+## 2. Implementation
+
+* **Framework:** Litestar
+* **Endpoint:** `POST /predict`
+* **Request/response schemas:** Reused existing Pydantic models from `prodml.api.schemas`.
+* **Prediction logic:** Reused `DurationPredictor` from `prodml.predict`.
+* **Model loading:** A lifespan handler loads the model once during application startup.
+* **Correlation ID:** Reads `X-Correlation-ID` from request headers or generates a UUID when the header is absent.
+* **Latency measurement:** Uses `perf_counter()` to measure prediction execution time.
+* **Synchronous handler:** Configured with `sync_to_thread=True` to avoid blocking the event loop during synchronous inference.
+
+## 3. Ergonomic Differences
+
+| Aspect                   | FastAPI                                                  | Litestar                                                         |
+| ------------------------ | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| Route declaration        | `@app.post("/predict")` or router decorators             | `@post("/predict")`                                              |
+| Application registration | Routes can be registered directly or through `APIRouter` | Handlers are registered through `Litestar(route_handlers=[...])` |
+| Application lifespan     | Supports lifespan context managers                       | Supports lifespan context managers                               |
+| Request access           | Uses FastAPI's injected `Request` object                 | Uses Litestar's `Request` object                                 |
+| Synchronous handlers     | Supports synchronous route handlers                      | `sync_to_thread=True` makes thread execution explicit            |
+| Successful POST status   | Implemented endpoint returns `200 OK`                    | Initially returned `201 Created`; configured `status_code=200`   |
+| Validation response      | Custom handler returns `422 Unprocessable Entity`        | Tested invalid request returned `400 Bad Request`                |
+| Prediction logic         | Uses `DurationPredictor`                                 | Reuses the same `DurationPredictor`                              |
+
+## 4. Verification Results
+
+### Valid Request
+
+**Input:**
+
+* `pu_do`: `100_200`
+* `trip_distance`: `3.5`
+* `X-Correlation-ID`: `litestar-test-001`
+
+| Field             | Observed result       |
+| ----------------- | --------------------- |
+| HTTP status       | `200 OK`              |
+| Prediction        | Approximately 25.59   |
+| Model version     | `1.0.0`               |
+| Correlation ID    | `litestar-test-001`   |
+| Inference latency | Approximately 8.55 ms |
+
+### Invalid Request
+
+**Input:**
+
+* `pu_do`: `invalid`
+* `trip_distance`: `-2`
+
+| Field             | Observed result                                                            |
+| ----------------- | -------------------------------------------------------------------------- |
+| HTTP status       | `400 Bad Request`                                                          |
+| Validation errors | Invalid pickup/drop-off ID pattern and trip distance not greater than zero |
+
+Litestar returned both validation errors in the response body. FastAPI's custom validation handler returns `422 Unprocessable Entity`, demonstrating a difference in HTTP status codes and error-response formatting.
+
+## 5. Observations
+
+Both frameworks support Pydantic validation, lifespan management, and structured API responses. Reusing the same schemas and prediction class allowed the Litestar implementation to share the existing model-serving logic without duplicating inference code.
+
+However, equivalent endpoints do not necessarily behave identically by default. Route registration, synchronous handler configuration, POST status codes, and validation error responses required attention when implementing the Litestar version.
+
+## 6. Conclusion
+
+The experiment demonstrated that prediction logic can remain independent of the web framework. FastAPI and Litestar provide similar capabilities but differ in application wiring and some default behaviors. Testing actual HTTP responses was necessary to identify these differences and configure the Litestar endpoint consistently with the intended prediction API.
