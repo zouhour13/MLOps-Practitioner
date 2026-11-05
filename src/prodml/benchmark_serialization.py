@@ -17,9 +17,12 @@ def measure_latency(
     repetitions: int = 100,
 ) -> tuple[float, float]:
     """Return mean and p95 inference latency in milliseconds per batch."""
-    predict()  # Warm up the runtime.
+    if repetitions < 1:
+        raise ValueError("repetitions must be at least 1")
 
+    predict()  # Warm up the runtime.
     latencies = []
+
     for _ in range(repetitions):
         start = time.perf_counter()
         predict()
