@@ -1,5 +1,6 @@
 """Benchmark pickle and ONNX inference on the same validation batch."""
 
+import logging
 import pickle
 import time
 from collections.abc import Callable
@@ -10,6 +11,9 @@ import onnxruntime as ort
 from prodml.config import settings
 from prodml.data import load_data, split_data
 from prodml.features import create_features
+from prodml.logging_conf import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def measure_latency(
@@ -32,6 +36,8 @@ def measure_latency(
 
 
 def main() -> None:
+    configure_logging()
+
     with settings.model_path.open("rb") as model_file:
         artifact = pickle.load(model_file)
 
@@ -66,7 +72,13 @@ def main() -> None:
         ("ONNX Runtime", predict_onnx),
     ):
         mean_ms, p95_ms = measure_latency(predict)
-        print(f"{name}: mean={mean_ms:.4f} ms/batch, p95={p95_ms:.4f} ms/batch")
+
+        logger.info(
+            "%s: mean=%.4f ms/batch, p95=%.4f ms/batch",
+            name,
+            mean_ms,
+            p95_ms,
+        )
 
 
 if __name__ == "__main__":

@@ -114,7 +114,7 @@ def test_main_runs_pickle_and_onnx_benchmarks(
 
     benchmark_serialization.main()
 
-    output = capsys.readouterr().out
+    output = capsys.readouterr().err
     assert "Pickle / scikit-learn" in output
     assert "ONNX Runtime" in output
     assert "mean=1.5000 ms/batch" in output
